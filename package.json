@@ -1,0 +1,18 @@
+{
+  "name": "tarcin-robotics-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "static": "npx http-server -c-1 . -p 5501",
+    "docker:build": "docker build -t tarcin-robotics ."
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^6.0.1"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

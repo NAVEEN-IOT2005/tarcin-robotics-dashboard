@@ -1,0 +1,168 @@
+:root{
+  --bg-1: #070707;
+  --bg-2: #0b0b0b;
+  --accent-dark: #3b0b0b;
+  --accent-bright: #ff1f1f;
+  --muted: #bfbfbf;
+  --glass: rgba(255,255,255,0.03);
+  --card-glow: 0 8px 28px rgba(255,20,20,0.06);
+  --ease: cubic-bezier(.2,.9,.3,1);
+}
+
+/* Animated background (subtle) */
+body::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(600px 200px at 10% 10%, rgba(255,43,43,0.04), transparent),
+    linear-gradient(120deg, rgba(40,0,0,0.08), rgba(0,0,0,0.12));
+  mix-blend-mode: screen;
+  animation: bgShift 12s linear infinite alternate;
+  pointer-events: none;
+  transition: opacity 300ms var(--ease);
+}
+@keyframes bgShift{
+  0%{ transform: translateY(0) scale(1); filter: hue-rotate(0deg) saturate(0.95); }
+  50%{ transform: translateY(-12px) scale(1.02) filter: hue-rotate(6deg) saturate(1.06); }
+  100%{ transform: translateY(0) scale(1) filter: hue-rotate(0deg) saturate(0.95); }
+}
+
+/* Smooth global transitions */
+*{ transition: background-color 200ms var(--ease), color 200ms var(--ease), box-shadow 200ms var(--ease), transform 200ms var(--ease); }
+
+/* Card uplift on hover and subtle floating motion */
+.card{
+  transform-origin: center;
+  will-change: transform, box-shadow;
+}
+.card:hover{
+  transform: translateY(-8px) scale(1.01);
+  box-shadow: var(--card-glow);
+}
+.card::after{
+  /* thin animated border that glows when ON */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+  transition: box-shadow 240ms var(--ease), opacity 240ms var(--ease);
+}
+.card.on::after{
+  box-shadow: 0 0 28px rgba(255,30,30,0.12), inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+/* Decorative accent line */
+.card .left{
+  position:relative;
+}
+.card .left::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  height:100%;
+  width:4px;
+  border-radius:8px 0 0 8px;
+  background: linear-gradient(180deg, var(--accent-bright), rgba(255,43,43,0.6));
+  opacity:0.06;
+  transition: opacity 220ms var(--ease), transform 220ms var(--ease);
+  transform: translateY(6px);
+}
+.card.on .left::before{ opacity:0.28; transform: translateY(0); }
+
+/* Slight parallax on icons */
+.icon{ transform: translateZ(0); transition: transform 380ms var(--ease); }
+.card:hover .icon{ transform: translateY(-4px) rotate(-3deg); }
+
+/* Toggle improvements */
+.toggle{
+  outline: none;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+}
+.toggle:focus{ box-shadow: 0 8px 20px rgba(255,20,20,0.06), 0 0 0 6px rgba(255,20,20,0.03); }
+
+/* Animated accent for ON states */
+.card.on .label{
+  color: var(--accent-bright);
+  text-shadow: 0 2px 8px rgba(255,30,30,0.14);
+}
+
+/* Small status chip positioned inside card when ON */
+.card .status{
+  position:absolute;
+  right:12px;
+  top:12px;
+  font-size:11px;
+  padding:6px 8px;
+  border-radius:999px;
+  background: rgba(255,30,30,0.08);
+  color: var(--accent-bright);
+  border: 1px solid rgba(255,255,255,0.03);
+  display:none;
+  align-items:center;
+  gap:8px;
+}
+.card.on .status{ display:inline-flex; }
+
+/* Cursor effect - requires small JS to update --cursor-x/--cursor-y */
+.cursor{
+  position: fixed;
+  left: var(--cursor-x, 50%);
+  top: var(--cursor-y, 50%);
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.06);
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06), transparent 40%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 9999;
+  transition: width 200ms var(--ease), height 200ms var(--ease), opacity 220ms var(--ease), transform 160ms var(--ease);
+  opacity: 0.95;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+.cursor.click{
+  width: 48px;
+  height: 48px;
+  opacity:0.18;
+  transform: translate(-50%, -50%) scale(1.05);
+  transition: width 160ms var(--ease), height 160ms var(--ease), opacity 160ms var(--ease), transform 160ms var(--ease);
+}
+
+/* Cursor follow smaller dot (for precision) */
+.cursor .dot{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:6px;
+  height:6px;
+  transform: translate(-50%,-50%);
+  border-radius:50%;
+  background: var(--accent-bright);
+  box-shadow: 0 0 12px rgba(255,40,40,0.8);
+  transition: background 120ms;
+}
+
+/* Decorative floating tech lines (subtle) */
+.tech-lines{
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 140px;
+  pointer-events:none;
+  opacity:0.06;
+  background-image:
+    linear-gradient(90deg, rgba(255,0,0,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mix-blend-mode: overlay;
+}
+
+/* Mobile adjustments */
+@media (max-width:520px){
+  .cursor{ display:none; }
+  .card:hover{ transform:none; }
+}
