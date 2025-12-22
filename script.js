@@ -1,90 +1,47 @@
-/* ======================================================
-   REAL-TIME MQTT DASHBOARD SCRIPT (PRODUCTION READY)
-====================================================== */
+const cards = document.querySelectorAll(".card");
 
-/* ================= MQTT CONFIG ================= */
-const brokerUrl = "wss://broker.hivemq.com:8884/mqtt";
-const baseTopic = "tarcin/home";   // MUST match ESP32
+/* ========= SEND COMMAND TO ESP32 ========= */
+function sendState(id, state) {
+  fetch(`/toggle?id=${id}&state=${state ? 1 : 0}`)
+    .catch(err => console.log("ESP32 not reachable"));
+}
 
-/* ================= CONNECT ================= */
-const client = mqtt.connect(brokerUrl, {
-  reconnectPeriod: 1000,   // auto reconnect
-  connectTimeout: 4000
-});
-
-/* ================= UI STATE LOCK ================= */
-const uiLock = {}; // prevents rapid double toggles
-
-/* ================= MQTT CONNECT ================= */
-client.on("connect", () => {
-  console.log("✅ MQTT Connected");
-
-  document.querySelectorAll(".card").forEach(card => {
-    const id = card.dataset.id;
-    client.subscribe(`${baseTopic}/state/${id}`);
-  });
-});
-
-client.on("reconnect", () => {
-  console.warn("🔄 MQTT Reconnecting...");
-});
-
-client.on("offline", () => {
-  console.warn("⚠️ MQTT Offline");
-});
-
-/* ================= RECEIVE STATE ================= */
-client.on("message", (topic, payload) => {
-  const state = payload.toString(); // "1" | "0"
-  const deviceId = topic.split("/").pop();
-
-  const card = document.querySelector(`.card[data-id="${deviceId}"]`);
-  if (!card) return;
-
+/* ========= TOGGLE CLICK ========= */
+cards.forEach(card => {
   const toggle = card.querySelector(".toggle");
   const checkbox = toggle.querySelector("input");
-
-  // Apply state
-  if (state === "1") {
-    card.classList.add("on");
-    toggle.classList.add("on");
-    checkbox.checked = true;
-  } else {
-    card.classList.remove("on");
-    toggle.classList.remove("on");
-    checkbox.checked = false;
-  }
-
-  // Unlock UI for this device
-  uiLock[deviceId] = false;
-});
-
-/* ================= UI → MQTT COMMAND ================= */
-document.querySelectorAll(".card").forEach(card => {
-  const deviceId = card.dataset.id;
-  const toggle = card.querySelector(".toggle");
-  const checkbox = toggle.querySelector("input");
-
-  // Prevent checkbox default behavior
-  checkbox.addEventListener("click", e => e.preventDefault());
+  const id = card.dataset.id;
 
   toggle.addEventListener("click", () => {
-    if (uiLock[deviceId]) return; // prevent spam
+    const newState = !checkbox.checked;
+    checkbox.checked = newState;
 
-    const nextState = !checkbox.checked;
+    card.classList.toggle("on", newState);
+    toggle.classList.toggle("on", newState);
 
-    uiLock[deviceId] = true; // lock until MQTT confirms
-
-    client.publish(
-      `${baseTopic}/cmd/${deviceId}`,
-      nextState ? "1" : "0",
-      { qos: 1 }   // reliable delivery
-    );
+    sendState(id, newState);
   });
 });
 
-/* ================= FILE:// WARNING ================= */
-if (location.protocol === "file:") {
-  const hint = document.getElementById("server-hint");
-  if (hint) hint.classList.remove("hidden");
+/* ========= REAL-TIME STATE SYNC ========= */
+function syncState() {
+  fetch("/state")
+    .then(res => res.json())
+    .then(data => {
+      cards.forEach(card => {
+        const id = card.dataset.id;
+        const state = data["d" + id] === 1;
+
+        const toggle = card.querySelector(".toggle");
+        const checkbox = toggle.querySelector("input");
+
+        card.classList.toggle("on", state);
+        toggle.classList.toggle("on", state);
+        checkbox.checked = state;
+      });
+    })
+    .catch(() => {});
 }
+
+/* Polling every 200ms (very fast, no delay feeling) */
+setInterval(syncState, 200);
