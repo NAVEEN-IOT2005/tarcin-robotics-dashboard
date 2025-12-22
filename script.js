@@ -1,30 +1,41 @@
 /* ======================================================
-   MQTT REAL-TIME DASHBOARD SCRIPT
-   Works with your existing HTML (no changes needed)
+   REAL-TIME MQTT DASHBOARD SCRIPT (PRODUCTION READY)
 ====================================================== */
 
 /* ================= MQTT CONFIG ================= */
 const brokerUrl = "wss://broker.hivemq.com:8884/mqtt";
+const baseTopic = "tarcin/home";   // MUST match ESP32
 
-/* 🔴 IMPORTANT: must match ESP32 baseTopic */
-const baseTopic = "tarcin/home";
+/* ================= CONNECT ================= */
+const client = mqtt.connect(brokerUrl, {
+  reconnectPeriod: 1000,   // auto reconnect
+  connectTimeout: 4000
+});
 
-/* ================= CONNECT MQTT ================= */
-const client = mqtt.connect(brokerUrl);
+/* ================= UI STATE LOCK ================= */
+const uiLock = {}; // prevents rapid double toggles
 
+/* ================= MQTT CONNECT ================= */
 client.on("connect", () => {
   console.log("✅ MQTT Connected");
 
-  // Subscribe to all device state topics
   document.querySelectorAll(".card").forEach(card => {
     const id = card.dataset.id;
     client.subscribe(`${baseTopic}/state/${id}`);
   });
 });
 
-/* ================= RECEIVE STATE FROM ESP32 ================= */
+client.on("reconnect", () => {
+  console.warn("🔄 MQTT Reconnecting...");
+});
+
+client.on("offline", () => {
+  console.warn("⚠️ MQTT Offline");
+});
+
+/* ================= RECEIVE STATE ================= */
 client.on("message", (topic, payload) => {
-  const state = payload.toString(); // "1" or "0"
+  const state = payload.toString(); // "1" | "0"
   const deviceId = topic.split("/").pop();
 
   const card = document.querySelector(`.card[data-id="${deviceId}"]`);
@@ -33,6 +44,7 @@ client.on("message", (topic, payload) => {
   const toggle = card.querySelector(".toggle");
   const checkbox = toggle.querySelector("input");
 
+  // Apply state
   if (state === "1") {
     card.classList.add("on");
     toggle.classList.add("on");
@@ -42,6 +54,9 @@ client.on("message", (topic, payload) => {
     toggle.classList.remove("on");
     checkbox.checked = false;
   }
+
+  // Unlock UI for this device
+  uiLock[deviceId] = false;
 });
 
 /* ================= UI → MQTT COMMAND ================= */
@@ -50,18 +65,25 @@ document.querySelectorAll(".card").forEach(card => {
   const toggle = card.querySelector(".toggle");
   const checkbox = toggle.querySelector("input");
 
-  toggle.addEventListener("click", () => {
-    const newState = !checkbox.checked;
+  // Prevent checkbox default behavior
+  checkbox.addEventListener("click", e => e.preventDefault());
 
-    // Publish command instantly
+  toggle.addEventListener("click", () => {
+    if (uiLock[deviceId]) return; // prevent spam
+
+    const nextState = !checkbox.checked;
+
+    uiLock[deviceId] = true; // lock until MQTT confirms
+
     client.publish(
       `${baseTopic}/cmd/${deviceId}`,
-      newState ? "1" : "0"
+      nextState ? "1" : "0",
+      { qos: 1 }   // reliable delivery
     );
   });
 });
 
-/* ================= FILE:// WARNING (OPTIONAL) ================= */
+/* ================= FILE:// WARNING ================= */
 if (location.protocol === "file:") {
   const hint = document.getElementById("server-hint");
   if (hint) hint.classList.remove("hidden");
