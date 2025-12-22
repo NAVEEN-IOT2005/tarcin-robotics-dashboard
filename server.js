@@ -7,107 +7,80 @@ const app = express();
 const PORT = process.env.PORT || 5501;
 const DATA_FILE = path.join(__dirname, 'states.json');
 
-/* -------------------- DEFAULT DEVICE STATE -------------------- */
-const DEFAULT_STATE = {
-  "light-1": false,
-  "light-2": false,
-  "light-3": false,
-  "light-4": false,
-  "fan-1": false,
-  "fan-2": false,
-  "plug-1": false
-};
-
-/* -------------------- MIDDLEWARE -------------------- */
-
-// Allow access from browser + ESP32
+/* ================= Middleware ================= */
 app.use(cors());
-
-// Parse JSON body
-app.use(express.json({ limit: '100kb' }));
-
-// Serve frontend files
+app.use(express.json());
 app.use(express.static(__dirname));
 
-/* -------------------- HELPERS -------------------- */
+/* ================= SSE Clients ================= */
+let clients = [];
 
+/* ================= Helpers ================= */
 function readState() {
   try {
-    // If file does not exist → create with defaults
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(DEFAULT_STATE, null, 2));
-      return { ...DEFAULT_STATE };
-    }
-
-    const raw = fs.readFileSync(DATA_FILE, 'utf8').trim();
-
-    // If file is empty → reset to defaults
-    if (!raw) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(DEFAULT_STATE, null, 2));
-      return { ...DEFAULT_STATE };
-    }
-
-    const parsed = JSON.parse(raw);
-
-    // Merge defaults with saved state (prevents missing keys)
-    return { ...DEFAULT_STATE, ...parsed };
-
-  } catch (err) {
-    console.error('Read error:', err);
-    return { ...DEFAULT_STATE };
+    if (!fs.existsSync(DATA_FILE)) return {};
+    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8') || '{}');
+  } catch {
+    return {};
   }
 }
 
 function writeState(state) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2));
-    return true;
-  } catch (err) {
-    console.error('Write error:', err);
-    return false;
-  }
+  fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2));
 }
 
-/* -------------------- API ROUTES -------------------- */
+/* ================= SSE Endpoint ================= */
+app.get('/api/stream', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+  res.flushHeaders();
 
-// Get full state (ESP32 + Web)
+  clients.push(res);
+
+  req.on('close', () => {
+    clients = clients.filter(c => c !== res);
+  });
+});
+
+/* ================= Broadcast ================= */
+function broadcastState(state) {
+  const data = `data: ${JSON.stringify(state)}\n\n`;
+  clients.forEach(res => res.write(data));
+}
+
+/* ================= API ================= */
+
+// GET full state
 app.get('/api/state', (req, res) => {
   res.json(readState());
 });
 
-// Update full state (Web UI)
+// PUT full state (ESP32 + Web)
 app.put('/api/state', (req, res) => {
   if (typeof req.body !== 'object') {
-    return res.status(400).json({ error: 'Invalid state object' });
+    return res.status(400).json({ error: 'Invalid state' });
   }
 
-  const newState = { ...DEFAULT_STATE, ...req.body };
-
-  if (!writeState(newState)) {
-    return res.status(500).json({ error: 'Failed to save state' });
-  }
-
-  res.json(newState);
+  writeState(req.body);
+  broadcastState(req.body); // 🔥 INSTANT PUSH
+  res.json(req.body);
 });
 
-// Health check
+// Health
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
-/* -------------------- SPA FALLBACK -------------------- */
-
-// Must be last
+// SPA fallback
 app.get('*', (req, res) => {
-  if (req.path.startsWith('/api')) {
-    return res.status(404).end();
-  }
+  if (req.path.startsWith('/api')) return res.status(404).end();
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-/* -------------------- START SERVER -------------------- */
-
+/* ================= Start ================= */
 app.listen(PORT, '0.0.0.0', () => {
-  console.log('Server running');
-  console.log(`http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
