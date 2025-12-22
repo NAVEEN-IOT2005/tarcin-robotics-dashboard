@@ -1,6 +1,13 @@
+/* ======================================================
+   MQTT REAL-TIME DASHBOARD SCRIPT
+   Works with your existing HTML (no changes needed)
+====================================================== */
+
 /* ================= MQTT CONFIG ================= */
 const brokerUrl = "wss://broker.hivemq.com:8884/mqtt";
-const baseTopic = "tarcin/home"; // MUST match ESP32
+
+/* 🔴 IMPORTANT: must match ESP32 baseTopic */
+const baseTopic = "tarcin/home";
 
 /* ================= CONNECT MQTT ================= */
 const client = mqtt.connect(brokerUrl);
@@ -15,7 +22,7 @@ client.on("connect", () => {
   });
 });
 
-/* ================= HANDLE MQTT MESSAGES ================= */
+/* ================= RECEIVE STATE FROM ESP32 ================= */
 client.on("message", (topic, payload) => {
   const state = payload.toString(); // "1" or "0"
   const deviceId = topic.split("/").pop();
@@ -37,7 +44,7 @@ client.on("message", (topic, payload) => {
   }
 });
 
-/* ================= UI → MQTT ================= */
+/* ================= UI → MQTT COMMAND ================= */
 document.querySelectorAll(".card").forEach(card => {
   const deviceId = card.dataset.id;
   const toggle = card.querySelector(".toggle");
@@ -54,7 +61,7 @@ document.querySelectorAll(".card").forEach(card => {
   });
 });
 
-/* ================= OPTIONAL: FILE:// WARNING ================= */
+/* ================= FILE:// WARNING (OPTIONAL) ================= */
 if (location.protocol === "file:") {
   const hint = document.getElementById("server-hint");
   if (hint) hint.classList.remove("hidden");
